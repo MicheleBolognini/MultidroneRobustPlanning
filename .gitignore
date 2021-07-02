@@ -35,4 +35,6 @@ octave-workspace
 LKH/LKH
 
 #Problem Files
-LocalTSPInstance*
+*.par
+*.tsp
+*.txt
