@@ -30,3 +30,9 @@ codegen/
 
 # Octave session info
 octave-workspace
+
+#Compiled LKH script
+LKH/LKH
+
+#Problem Files
+LKH/problem_files/*
