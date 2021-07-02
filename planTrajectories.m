@@ -1,4 +1,4 @@
-function solution = planTrajectories(points, startingPoint, params, mesh, mergedMesh)
+function solution = planTrajectories(points, params, mesh, mergedMesh)
 
 %% Define some more parameters
 params.fillerPointsDistance = 3; % distance of filler points along the vertex normal from which they are calculated
@@ -6,6 +6,7 @@ params.allPointsMinHeight = 1;   % minimum height above ground (z=0) for all poi
 params.fillerPointBoundingBox = 4; % Width over maximum point coordinates over which non more filler points are considered close to a cluster
 params.extendedGraphConnectionRadius = 8;   % maximum distance between connectable points in extended graph
 params.minimalGraphConnectionRadius = 8;
+startingPoint = params.startingPoint;
 
 %% Find Clusters
 numClusters = params.clusters;  % Predefined number of clusters
@@ -584,10 +585,13 @@ for k = 1:numv
     pts = [pts; outerFillerPoints(clusters{c}.pathHome(end-1:-1:2)-1,:); startingPoint];
     solution.trajectories{k} = pts;
 end
+solution.centroids = centroids;
+solution.outerFillerPoints = outerFillerPoints;
 solution.times = times;
 solution.spans = spans;
 solution.clusterGraph = G_clusters;
 solution.variables = sol;
+solution.clusters = clusters;
 
 delete *.log
 end
