@@ -1,0 +1,6 @@
+PROBLEM_FILE = LKH/problem_files/LocalTSPInstance6.tsp
+OUTPUT_TOUR_FILE = LKH/problem_files/LocalTSPInstance6.txt
+DEPOT = 1
+MTSP_MIN_SIZE = 1
+MTSP_OBJECTIVE = MINMAX
+EOF

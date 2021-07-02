@@ -14,7 +14,7 @@ numClusters = params.clusters;  % Predefined number of clusters
 tic
 clusterIdxs = kmeans(points, numClusters);
 times.clustering = toc;
-if debug
+if params.debug
     figure(2)%, hold on, title("K-means Clustering Silhouette Index")
     %silhouette(points, clusterIdxs), grid on
     hold on, grid on, title("K-means Clustering")
@@ -38,7 +38,7 @@ normals = params.fillerPointsDistance * meshVertexNormals(mesh.vertices, mesh.fa
 fillerPoints = mesh.vertices + normals;
 aux = fillerPoints(:,3) < params.allPointsMinHeight | inpolyhedron(mergedMesh, fillerPoints); % Filter out points that are either too low or inside the mesh
 fillerPoints(aux,:) = [];
-if debug
+if params.debug
     figure(1)
     drawVector3d(mesh.vertices, normals);
     displayPoints(gca, fillerPoints, "*b");
@@ -188,14 +188,14 @@ for i = 1:numClusters-1
     A_aux = A_aux(1:end-1, 1:end-1);
 end
 
-%% Limit connectivity by only keeping the params.graphMaxDegree shortest connections
+%% Limit connectivity by only keeping the params.graphMinDegree shortest connections
 for i = 1:numClusters
     temp = clusters{i}.interClusterDist;
     temp(i) = 0;
-    while nnz(temp) > params.graphMaxDegree
+    while nnz(temp) > params.graphMinDegree
 %         Temporarily ignore distance to home
         [m, j] = max(temp); % Find max dist and its idx
-        if nnz(clusters{j}.interClusterDist) > params.graphMaxDegree % Don't cancel this if it would make the other nodes' degree < maximum degree
+        if nnz(clusters{j}.interClusterDist) > params.graphMinDegree % Don't cancel this if it would make the other nodes' degree < maximum degree
             clusters{i}.interClusterDist(j) = 0;
             clusters{i}.interClusterPaths{j} = [];
             clusters{j}.interClusterDist(i) = 0;
@@ -207,7 +207,7 @@ end
 
 
 %% Estimate each cluster's "weight" by solving a TSP between first and second frontier points
-if debug
+if params.debug
     figure(3)
     displayMesh(mesh)
     hold on
@@ -235,12 +235,12 @@ for i = 1:numClusters
     par.infDist = 9999999;
     sol_temp = LKH_TSP([0, aux';            % Pass an enlarged matrix, adding one node at the beginning to find Hamiltonian Cycle...
                         aux, clusters{i}.A_minimal],...
-                        par,strcat("LocalTSPInstance", num2str(i)),"LKH-3.0.6","problem_files");
+                        par,strcat("LocalTSPInstance", num2str(i)),"LKH","problem_files");
     sol = sol_temp(2:end)-1;                    % Skip first node, as it is the fake one introduced earlier, and shift all nodes by one backwards
     clusters{i}.TSPsolution = sol;
 
     l = 0;
-    if debug
+    if params.debug
         Gaux = graph(clusters{i}.A_minimal);
         plot(Gaux, "Xdata", clusters{i}.points(1:clusters{i}.numPoints,1), "Ydata", clusters{i}.points(1:clusters{i}.numPoints,2), "Zdata", clusters{i}.points(1:clusters{i}.numPoints,3))
     end
@@ -252,7 +252,7 @@ end
 
 
 % Plot
-if debug
+if params.debug
     figure(2)%, subplot(1,2,2)
     hold on
     for i = 1:numClusters-1
@@ -287,7 +287,7 @@ A_clusters(1,1) = 0;
 A_clusters(A_clusters==inf)=0;  % Possible bug wheresome distances are sometimes inf
 
 G_clusters = graph(A_clusters);
-if debug
+if params.debug
     figure
     plot(G_clusters, "XData", centroids(:,1), "YData", centroids(:,2), "ZData", centroids(:,3), "NodeLabel", round([0; weights]), "EdgeLabel", round(G_clusters.Edges.Weight));
     xlabel("X [m]"), ylabel("Y [m]"), zlabel("Z [m]"), grid on
@@ -295,7 +295,7 @@ if debug
     hold on
 end
 
-vfprintf(verbose,"Now solving with %d clusters, %d drones\n", params.clusters, params.drones);
+vfprintf(params.verbose,"Now solving with %d clusters, %d drones\n", params.clusters, params.drones);
     
 %% State and Solve CVRP
 tic
@@ -431,7 +431,7 @@ iterations = output.iterations;
 x_CVRP_trips = logical(round(x_CVRP));
 sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
 
-if debug
+if params.debug
     figure
     plot(G_clusters, "XData", centroids(:,1), "YData", centroids(:,2), "ZData", centroids(:,3), "LineStyle", "none");
     hold on
@@ -534,7 +534,7 @@ end
 for k = 1:numv
     if length(loops{k}) == 3
         c = loops{k}(2)-1;
-        sol_temp = LKH_TSP(clusters{c}.A_minimal, par, strcat("LocalTSPInstance", num2str(c)), "LKH-3.0.6","problem_files");
+        sol_temp = LKH_TSP(clusters{c}.A_minimal, par, strcat("LocalTSPInstance", num2str(c)), "LKH","problem_files");
         idx = find(sol_temp == clusters{c}.frontierIndexes(c));
         
         clusters{c}.TSPsolution = [ sol_temp(idx:end), sol_temp(1:idx-1)];
@@ -559,7 +559,7 @@ for k = 1:numv
             aux(id2) = 1;
             sol_temp = LKH_TSP([0, aux';
                         aux, clusters{this}.A_minimal],...
-                        par,strcat("LocalTSPInstance", num2str(this)),"LKH-3.0.6","problem_files");
+                        par,strcat("LocalTSPInstance", num2str(this)),"LKH","problem_files");
             sol_temp = sol_temp(2:end)-1;
             if sol_temp(1) == id2
                 sol_temp = sol_temp(end:-1:1);
