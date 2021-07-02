@@ -381,53 +381,46 @@ row = repmat(distances,1,numv);
 A = [A; row];
 b = [b; (numv-1)*params.vehicleCapacity - 2*numv*l_max];
 
-% Add a column for the threshold variable
-A = [A, zeros(size(A,1),1)];
-Aeq = [Aeq, zeros(size(Aeq,1),1)];
+if params.minMaxing
+    % Add a column for the threshold variable
+    A = [A, zeros(size(A,1),1)];
+    Aeq = [Aeq, zeros(size(Aeq,1),1)];
 
-% Threshold constraints
-for k = 1:numv
-    row = [];
-    for j = 1:k-1
-        row = [row, zeros(1, length(edges))];
+    % Threshold constraints
+    for k = 1:numv
+        row = [];
+        for j = 1:k-1
+            row = [row, zeros(1, length(edges))];
+        end
+        row = [row, distances];
+        for j = k:numv-1
+            row = [row, zeros(1, length(edges))];
+        end
+        A = [A; row, -1];
+        b = [b; 0];
     end
-    row = [row, distances];
-    for j = k:numv-1
-        row = [row, zeros(1, length(edges))];
-    end
-    A = [A; row, -1];
-    b = [b; 0];
+     % Further setup for minmax formulation
+    intcon = 1:numVars+1;
+    lb = [zeros(numVars,1); 1];
+    ub = [ones(numVars,1); inf];
+    ctype = [repmat(['B'], 1, numv*length(distances)), 'I'];
+    
+    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    x_CVRP = x_CVRP_threshold(1:end-1);
+else
+    % Setup for normal formulation
+    intcon = 1:numVars;
+    lb = [zeros(numVars,1)];
+    ub = [ones(numVars,1)];
+    opts = optimoptions('intlinprog', 'Display', 'off');
+
+    [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);%, [], [], [], lb, ub, ctype);
 end
 
 
-
- % Further setup for minmax formulation
-intcon = 1:numVars+1;
-lb = [zeros(numVars,1); 1];
-ub = [ones(numVars,1); inf];
-ctype = [repmat(['B'], 1, numv*length(distances)), 'I'];
-
-% % Setup for normal formulation
-% intcon = 1:numVars;
-% lb = [zeros(numVars,1)];
-% ub = [ones(numVars,1)];
-% opts = optimoptions('intlinprog', 'Display', 'off');
-
 % [x_CVRP, costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
 % [x_CVRP, costopt,exitflag,output] = intlinprog([repmat(distances*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
-% [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);%, [], [], [], lb, ub, ctype);
-
-
-[x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
-x_CVRP = x_CVRP_threshold(1:end-1);
-
-
 iterations = output.iterations;
-% if isempty(x_CVRP)
-%     fprintf("No solution found\n");
-%     prova = prova+1;
-%     continue
-% end
 
 x_CVRP_trips = logical(round(x_CVRP));
 sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
@@ -485,8 +478,11 @@ while numtours > 1 % Repeat until there is just one subtour
             for j = k:numv-1
                 row = [row, zeros(1, length(edges))];
             end
-            A = [A; row 0];
-            %A = [A; row];
+            if params.minMaxing
+                A = [A; row 0];
+            else
+                A = [A; row];
+            end
             b = [b; length(subTourIdx) - 1];
         end
     end
@@ -494,11 +490,15 @@ while numtours > 1 % Repeat until there is just one subtour
     % Try to optimize again
     %[x_CVRP,costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
     %[x_CVRP, costopt,exitflag,output] = intlinprog([repmat(distances*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
-    %[x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);% , [], [], [], lb, ub, ctype);
-    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    
+    if params.minMaxing
+        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        x_CVRP = x_CVRP_threshold(1:end-1);
+    else
+        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);% , [], [], [], lb, ub, ctype);
+    end
     
     iterations = iterations + output.iterations;
-    x_CVRP = x_CVRP_threshold(1:end-1);
     x_CVRP_trips = logical(round(x_CVRP));
     sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
     takenEdges = logical(sum(sol,2));
@@ -592,6 +592,7 @@ solution.spans = spans;
 solution.clusterGraph = G_clusters;
 solution.variables = sol;
 solution.clusters = clusters;
+solution.CVRPiterations = iterations;
 
 delete *.log
 end

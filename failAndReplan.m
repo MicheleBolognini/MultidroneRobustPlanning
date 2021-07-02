@@ -1,4 +1,4 @@
-function solution = failAndReplan(solution, params)
+function solution = failAndReplan(solution, params, mesh)
 orderedEdges = {};
 numv = params.vehicles;
 edges = solution.clusterGraph.Edges.EndNodes;
@@ -230,35 +230,39 @@ for k = 1:numv
         beq = [beq; 1];               
     end
 end
-% 
-% Add a column for the threshold variable
-A = [A, zeros(size(A,1),1)];
-Aeq = [Aeq, zeros(size(Aeq,1),1)];
 
-% Threshold constraints
-for k = 1:numv
-    row = [];
-    for j = 1:k-1
-        row = [row, zeros(1, length(edges_reduced))];
+if params.minMaxing
+% Add a column for the threshold variable
+    A = [A, zeros(size(A,1),1)];
+    Aeq = [Aeq, zeros(size(Aeq,1),1)];
+
+    % Threshold constraints
+    for k = 1:numv
+        row = [];
+        for j = 1:k-1
+            row = [row, zeros(1, length(edges_reduced))];
+        end
+        row = [row, distances_reduced];
+        for j = k:numv-1
+            row = [row, zeros(1, length(edges_reduced))];
+        end
+        A = [A; row, -1];
+        b = [b; 0];
     end
-    row = [row, distances_reduced];
-    for j = k:numv-1
-        row = [row, zeros(1, length(edges_reduced))];
-    end
-    A = [A; row, -1];
-    b = [b; 0];
+    intcon = 1:numVars+1;
+    lb = [zeros(numVars,1); 1];
+    ub = [ones(numVars,1); inf];
+    ctype = [repmat(['B'], 1, numv*length(distances_reduced)), 'I'];
+    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    x_CVRP = x_CVRP_threshold(1:end-1);
+else
+    intcon = 1:numVars;
+    lb = [zeros(numVars,1)];
+    ub = [ones(numVars,1)];
+    opts = optimoptions('intlinprog', 'Display', 'off');
+    [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq);
 end
 
-
-
-intcon = 1:numVars+1;
-lb = [zeros(numVars,1); 1];
-ub = [ones(numVars,1); inf];
-ctype = [repmat(['B'], 1, numv*length(distances_reduced)), 'I'];
-
-%[x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq);
-[x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
-x_CVRP = x_CVRP_threshold(1:end-1);
 iterations = output.iterations;
 
 x_CVRP_trips = logical(round(x_CVRP));
@@ -301,17 +305,23 @@ while numtours > 1 % Repeat until there is just one subtour
             for j = k:numv-1
                 row = [row, zeros(1, length(edges_reduced))];
             end
-            A = [A; row 0];
-            %A = [A; row];
+            if params.minMaxing
+                A = [A; row 0];
+            else
+                A = [A; row];
+            end
             b = [b; length(subTourIdx) - 1];
         end
     end
 
     % Try to optimize again
-    %[x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq, x_CVRP);
-    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
-    x_CVRP = x_CVRP_threshold(1:end-1);
-    
+    if params.minMaxing
+        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        x_CVRP = x_CVRP_threshold(1:end-1);
+    else
+        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq, x_CVRP);
+    end
+        
     iterations = iterations + output.iterations;
     x_CVRP_trips = logical(round(x_CVRP));
     sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
@@ -325,8 +335,6 @@ while numtours > 1 % Repeat until there is just one subtour
     
 end
 
-
-%[aux, x_CVRP_new] = calcSpans(x_CVRP_trips, numv, edges, newDistances);
 x_CVRP_new = x_CVRP_trips;
 sol = reshape(x_CVRP_new, [length(x_CVRP_trips)/numv,numv]);
 % reintroduce failed drone with no edges taken, for color correction
@@ -446,41 +454,48 @@ for k = 1:numv
 end
 times.TSPsolution = toc;
 % Display overall solution
-% if showCVRPSolution
-%     figure
-%     hold on
-%     displayMesh(mesh)
-%     for k = 1:numv
+if params.displayNewSolution
+    colors = [0 0.447 0.741;
+          0.85 0.325 0.098;
+          0.929 0.694 0.125;
+          0.494 0.184 0.556;
+          0.466 0.674 0.188;
+          0.301 0.745 0.933;
+          0.635 0.075 0.184];
+    figure
+    hold on
+    displayMesh(mesh)
+    for k = 1:numv
 %         For each vehicle, collect all the points it visits in order, then
 %         plot lines through all of them
-%         if length(loops{k}) < 3
-%             continue
-%         end
-%         c = loops{k}(2)-1;
-%         pts = [startingPoint; outerFillerPoints(clusters{c}.pathHome(2:end-1)-1,:)];
-%         pts = [pts; clusters{c}.points(clusters{c}.frontierIndexes(c),:)];
-%         for i = 2:length(loops{k})-1
-%             if loops{k}(i) == 1
-%                 new_points = [startingPoint];
-%             else
-%                 c = loops{k}(i)-1;
-%                 new_points = clusters{c}.points(clusters{c}.TSPsolution,:);
-%             end
-%             pts = [pts; new_points];
-%         end
-%         c = loops{k}(end-1)-1;
-%         pts = [pts; outerFillerPoints(clusters{c}.pathHome(end-1:-1:2)-1,:)];
-%         if k == failDrone
-%             pts = [pts; pts(end,1:2) 0];
-%             scatter3(pts(end,1), pts(end,2), 0, 200, 'x', "LineWidth", 4, "MarkerEdgeColor", "k")
-%             scatter3(pts(end,1), pts(end,2), 0, 80, colors(k,:), "filled")
-%         else
-%             pts = [pts; startingPoint];
-%         end
-%         plot3(pts(:,1), pts(:,2), pts(:,3), "color", colors(k,:), "LineWidth", 1.5)
-%     end
-%     grid on
-% end
+        if length(loops{k}) < 3
+            continue
+        end
+        c = loops{k}(2)-1;
+        pts = [startingPoint; outerFillerPoints(clusters{c}.pathHome(2:end-1)-1,:)];
+        pts = [pts; clusters{c}.points(clusters{c}.frontierIndexes(c),:)];
+        for i = 2:length(loops{k})-1
+            if loops{k}(i) == 1
+                new_points = [startingPoint];
+            else
+                c = loops{k}(i)-1;
+                new_points = clusters{c}.points(clusters{c}.TSPsolution,:);
+            end
+            pts = [pts; new_points];
+        end
+        c = loops{k}(end-1)-1;
+        pts = [pts; outerFillerPoints(clusters{c}.pathHome(end-1:-1:2)-1,:)];
+        if k == failDrone
+            pts = [pts; pts(end,1:2) 0];
+            scatter3(pts(end,1), pts(end,2), 0, 200, 'x', "LineWidth", 4, "MarkerEdgeColor", "k")
+            scatter3(pts(end,1), pts(end,2), 0, 80, colors(k,:), "filled")
+        else
+            pts = [pts; startingPoint];
+        end
+        plot3(pts(:,1), pts(:,2), pts(:,3), "color", colors(k,:), "LineWidth", 2)
+    end
+    grid on
+end
 
 % Compose the solution object
 solution.vehicles = params.vehicles;
