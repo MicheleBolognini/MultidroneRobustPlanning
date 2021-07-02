@@ -36,3 +36,6 @@ LKH/LKH
 
 #Problem Files
 LKH/problem_files/*
+
+# CPLEX log files
+*.log

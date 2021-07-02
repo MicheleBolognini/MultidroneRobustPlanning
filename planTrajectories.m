@@ -295,12 +295,12 @@ if params.debug
     hold on
 end
 
-vfprintf(params.verbose,"Now solving with %d clusters, %d drones\n", params.clusters, params.drones);
+vfprintf(params.verbose,"Now solving with %d clusters, %d drones\n", params.clusters, params.vehicles);
     
 %% State and Solve CVRP
 tic
 l_max = max(G_clusters.Edges.Weight);
-numv = params.drones;   % Number of vehicles
+numv = params.vehicles;   % Number of vehicles
 edges = [];
 for i = 1:length(A_clusters)
     for j = 1:length(A_clusters)
@@ -360,7 +360,7 @@ for i = 1:nStops
     
 end
 
-% Each vehicle cannot span more tha params.droneCapacity - 2l_{max} meters
+% Each vehicle cannot span more tha params.vehicleCapacity - 2l_{max} meters
 for k = 1:numv
     row = [];
     for j = 1:k-1
@@ -371,14 +371,14 @@ for k = 1:numv
         row = [row, zeros(1, length(edges))];
     end
     A = [A; row];
-    b = [b; params.droneCapacity-2*l_max];
+    b = [b; params.vehicleCapacity-2*l_max];
 end
 
 %For each vehicle, the sum of residual capacities of other drones must be
-%less than params.droneCapacity
+%less than params.vehicleCapacity
 row = repmat(distances,1,numv);
 A = [A; row];
-b = [b; (numv-1)*params.droneCapacity - 2*numv*l_max];
+b = [b; (numv-1)*params.vehicleCapacity - 2*numv*l_max];
 
 % Add a column for the threshold variable
 A = [A, zeros(size(A,1),1)];
@@ -508,12 +508,8 @@ while numtours > 1 % Repeat until there is just one subtour
     numtours = max(tourIdxs); % number of subtours
     fprintf('CVRP solution found, # of subtours: %d\n', numtours)
 end
-times.CVRPTotalSolution = toc;
-% if isempty(x_CVRP_trips)
-%     fprintf("No solution found\n");
-%     prova = prova+1;
-%     continue
-% end
+times.CVRPsolution = toc;
+
 [aux, x_CVRP_new] = calcSpans(x_CVRP_trips, numv, edges, distances);
 sol = reshape(x_CVRP_new, [length(x_CVRP_trips)/numv,numv]);
 spans = (sol'*distances')';
@@ -592,4 +588,6 @@ solution.times = times;
 solution.spans = spans;
 solution.clusterGraph = G_clusters;
 solution.variables = sol;
+
+delete *.log
 end
