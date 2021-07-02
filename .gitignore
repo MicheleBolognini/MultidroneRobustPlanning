@@ -35,6 +35,4 @@ octave-workspace
 LKH/LKH
 
 #Problem Files
-LKH/problem_files/*.par
-*.tsp
-*.txt
+LKH/problem_files/*
