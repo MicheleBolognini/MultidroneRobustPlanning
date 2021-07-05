@@ -24,7 +24,7 @@ if params.debug
 end
 % Build cluster objects
 clusters = cell(numClusters,1);
-parfor c = 1:numClusters
+for c = 1:numClusters
     clusters{c}.id = c;
     clusters{c}.points = points(clusterIdxs==c,:);
     clusters{c}.centroid = mean(clusters{c}.points);
@@ -47,7 +47,7 @@ end
 
 %% For each cluster, find distance to neighboring clusters
 eps = params.fillerPointBoundingBox;    % margin of box around points
-parfor c = 1:numClusters
+for c = 1:numClusters
     clusters{c}.numPoints = size(clusters{c}.points,1);
     % Store all points, both of interest and filler, in a single vector
     clusters{c}.points = [clusters{c}.points; fillerPoints(...
@@ -381,6 +381,8 @@ row = repmat(distances,1,numv);
 A = [A; row];
 b = [b; (numv-1)*params.vehicleCapacity - 2*numv*l_max];
 
+opts = optimoptions('intlinprog', 'Display', 'off');
+
 if params.minMaxing
     % Add a column for the threshold variable
     A = [A, zeros(size(A,1),1)];
@@ -404,23 +406,33 @@ if params.minMaxing
     lb = [zeros(numVars,1); 1];
     ub = [ones(numVars,1); inf];
     ctype = [repmat(['B'], 1, numv*length(distances)), 'I'];
-    
-    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    if strcmp(params.optimizer, "MATLAB")
+        [x_CVRP_threshold, costopt, exitflag, output] = intlinprog([repmat(distances*0,1,numv), 1], intcon,A,b,Aeq,beq,lb,ub,opts);
+    elseif strcmp(params.optimizer, "CPLEX")
+        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances*0,1,numv), 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    else
+        error("ERROR: Unknown optimizer %s", params.optimizer)
+    end
     x_CVRP = x_CVRP_threshold(1:end-1);
 else
     % Setup for normal formulation
     intcon = 1:numVars;
     lb = [zeros(numVars,1)];
     ub = [ones(numVars,1)];
-    opts = optimoptions('intlinprog', 'Display', 'off');
-
-    [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);%, [], [], [], lb, ub, ctype);
+    if strcmp(params.optimizer, "MATLAB")
+        [x_CVRP, costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
+    elseif strcmp(params.optimizer, "CPLEX")
+        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);
+    else
+        error("ERROR: Unknown optimizer %s", params.optimizer)
+    end
 end
 
-
-% [x_CVRP, costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
-% [x_CVRP, costopt,exitflag,output] = intlinprog([repmat(distances*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
-iterations = output.iterations;
+if strcmp(params.optimizer, "CPLEX")
+    iterations = output.iterations;
+else
+    iterations = 0;
+end
 
 x_CVRP_trips = logical(round(x_CVRP));
 sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
@@ -488,17 +500,23 @@ while numtours > 1 % Repeat until there is just one subtour
     end
 
     % Try to optimize again
-    %[x_CVRP,costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
-    %[x_CVRP, costopt,exitflag,output] = intlinprog([repmat(distances*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
-    
     if params.minMaxing
-        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        if strcmp(params.optimizer, "MATLAB")
+            [x_CVRP_threshold, costopt,exitflag,output] = intlinprog([repmat(distances*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
+        elseif strcmp(params.optimizer, "CPLEX")
+            [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        end
         x_CVRP = x_CVRP_threshold(1:end-1);
     else
-        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);% , [], [], [], lb, ub, ctype);
+        if strcmp(params.optimizer, "MATLAB")
+            [x_CVRP,costopt,exitflag,output] = intlinprog(repmat(distances,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
+        elseif strcmp(params.optimizer, "CPLEX")
+            [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances,1,numv), A, b, Aeq, beq);
+        end
     end
-    
-    iterations = iterations + output.iterations;
+    if strcmp(params.optimizer, "CPLEX")
+        iterations = iterations + output.iterations;
+    end
     x_CVRP_trips = logical(round(x_CVRP));
     sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
     takenEdges = logical(sum(sol,2));

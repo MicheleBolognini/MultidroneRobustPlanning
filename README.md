@@ -15,6 +15,3 @@ make
 
 Compiling will make the executable available, the file is called 'LKH'.
 
-# TODO
-- Make solver parameters do stuff (matlab/cplex solver)
-

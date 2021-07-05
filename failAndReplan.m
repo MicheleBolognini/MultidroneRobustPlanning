@@ -231,6 +231,7 @@ for k = 1:numv
     end
 end
 
+opts = optimoptions('intlinprog', 'Display', 'off');
 if params.minMaxing
 % Add a column for the threshold variable
     A = [A, zeros(size(A,1),1)];
@@ -253,17 +254,28 @@ if params.minMaxing
     lb = [zeros(numVars,1); 1];
     ub = [ones(numVars,1); inf];
     ctype = [repmat(['B'], 1, numv*length(distances_reduced)), 'I'];
-    [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    if strcmp(params.optimizer, "MATLAB")
+        [x_CVRP_threshold, costopt, exitflag, output] = intlinprog([repmat(distances_reduced*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
+    elseif strcmp(params.optimizer, "CPLEX")
+        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+    end
     x_CVRP = x_CVRP_threshold(1:end-1);
 else
     intcon = 1:numVars;
     lb = [zeros(numVars,1)];
     ub = [ones(numVars,1)];
-    opts = optimoptions('intlinprog', 'Display', 'off');
-    [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq);
+    if strcmp(params.optimizer, "MATLAB")
+        [x_CVRP, costopt,exitflag,output] = intlinprog(repmat(distances_reduced,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
+    elseif strcmp(params.optimizer, "CPLEX")
+        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq);
+    end    
 end
 
-iterations = output.iterations;
+if strcmp(params.optimizer, "CPLEX")
+    iterations = output.iterations;
+else
+    iteratons = 0;
+end
 
 x_CVRP_trips = logical(round(x_CVRP));
 sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
@@ -316,13 +328,22 @@ while numtours > 1 % Repeat until there is just one subtour
 
     % Try to optimize again
     if params.minMaxing
-        [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        if strcmp(params.optimizer, "MATLAB")
+            [x_CVRP_threshold, costopt, exitflag, output] = intlinprog([repmat(distances_reduced*0,1,numv),1],intcon,A,b,Aeq,beq,lb,ub,opts);
+        elseif strcmp(params.optimizer, "CPLEX")
+            [x_CVRP_threshold, costopt, exitflag, output] = cplexmilp([repmat(distances_reduced,1,numv)*0, 1], A, b, Aeq, beq, [], [], [], lb, ub, ctype);
+        end
         x_CVRP = x_CVRP_threshold(1:end-1);
     else
-        [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq, x_CVRP);
+        if strcmp(params.optimizer, "MATLAB")
+            [x_CVRP, costopt,exitflag,output] = intlinprog(repmat(distances_reduced,1,numv),intcon,A,b,Aeq,beq,lb,ub,opts);
+        elseif strcmp(params.optimizer, "CPLEX")
+            [x_CVRP, costopt, exitflag, output] = cplexbilp(repmat(distances_reduced,1,numv), A, b, Aeq, beq);
+        end  
     end
-        
-    iterations = iterations + output.iterations;
+    if strcmp(params.optimizer, "CPLEX") 
+        iterations = iterations + output.iterations;
+    end
     x_CVRP_trips = logical(round(x_CVRP));
     sol = reshape(x_CVRP_trips, [length(x_CVRP_trips)/numv,numv]);
     takenEdges = logical(sum(sol,2));
