@@ -7,10 +7,10 @@ It is available both from the [official site](http://webhotel4.ruc.dk/~keld/rese
 Download the code or clone the repository, then rename the folder and compile it
 
 
-`tar xvfz LKH-3.0.6.tgz`
-`mv LKH-3.0.6.tgz LKH`
-`cd LKH`
-`make`
+`tar xvfz LKH-3.0.6.tgz`\
+`mv LKH-3.0.6.tgz LKH`\
+`cd LKH`\
+`make`\
 
 Compiling will make the executable available, the file is called 'LKH'.
 
