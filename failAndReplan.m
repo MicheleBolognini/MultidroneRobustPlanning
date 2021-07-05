@@ -492,7 +492,7 @@ if params.displayNewSolution
         else
             pts = [pts; startingPoint];
         end
-        plot3(pts(:,1), pts(:,2), pts(:,3), "color", colors(k,:), "LineWidth", 2)
+        plot3(pts(:,1), pts(:,2), pts(:,3), "color", colors(k,:), "LineWidth", 1.5)
     end
     grid on
 end
@@ -506,7 +506,11 @@ for k = 1:numv
     pts = [pts; clusters{c}.points(clusters{c}.frontierIndexes(c),:)];
     for i = 2:length(loops{k})-1
         c = loops{k}(i)-1;
-        new_points = clusters{c}.points(clusters{c}.TSPsolution,:);
+        if c == 0
+            new_points = startingPoint;
+        else
+            new_points = clusters{c}.points(clusters{c}.TSPsolution,:);
+        end
         pts = [pts; new_points];
     end
     c = loops{k}(end-1)-1;
@@ -517,5 +521,5 @@ solution.times = times;
 solution.spans = spans;
 solution.clusterGraph = G_clusters_reduced;
 solution.variables = sol;
-
+delete *.log
 end
