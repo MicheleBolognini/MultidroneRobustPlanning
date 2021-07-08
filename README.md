@@ -24,3 +24,16 @@ make
 ```
 
 Compiling will make the executable available, the file is called 'LKH'.
+
+
+This toolbox provides functions for planning paths for a set of drones tasked with traversing a set of 3D points in a known and cluttered environment.
+The algorithm is described in [[1]](#1).
+
+
+
+
+## References
+<a id="1">[1]</a> 
+M. Bolognini, L. Fagiano, M.P. Limongelli (2021). 
+An autonomous, robust, multi-agent UAV pathplanner for inspection of the built environment.
+???
