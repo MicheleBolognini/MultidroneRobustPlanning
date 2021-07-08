@@ -5,7 +5,7 @@
 2. Install LKH
 
 ```shell
-git clone https://gitlab.polimi.it/DEIB/SAS-Lab/stem/MultidroneRobustPlanning
+git clone https://github.com/MicheleBolognini/MultidroneRobustPlanning
 
 ```
 
