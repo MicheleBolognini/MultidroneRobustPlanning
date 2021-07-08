@@ -1,7 +1,7 @@
 # Multidrone Robust Planning Toolbox
 
 ## Installation
-1. Clone the repository
+1. Clone the repository or get the toolbox from the MATLAB File Exchange
 2. Install LKH
 
 ```shell
@@ -29,7 +29,7 @@ Compiling will make the executable available, the file is called 'LKH'.
 This toolbox provides functions for planning paths for a set of drones tasked with traversing a set of 3D points in a known and cluttered environment.
 The algorithm is described in [[1]](#1).
 
-
+[![View Multidrone Robust Planning on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://it.mathworks.com/matlabcentral/fileexchange/95533-multidrone-robust-planning)
 
 
 ## References
